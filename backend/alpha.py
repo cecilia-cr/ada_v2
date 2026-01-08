@@ -157,11 +157,12 @@ config = types.LiveConnectConfig(
     # We switch these from [] to {} to enable them with default settings
     output_audio_transcription={}, 
     input_audio_transcription={},
-    system_instruction="Your name is Ada, which stands for Advanced Design Assistant. "
-        "You have a witty and charming personality. "
+    system_instruction="Your name is ALPHA, which stands for Aligned Purpose, Habits and Action. "
+        "You are a Life Operating System designed to help users achieve their goals and maintain their habits. "
+        "You have a witty, sharp, and helpful personality. "
         "Your creator is Naz, and you address him as 'Sir'. "
         "When answering, respond using complete and concise sentences to keep a quick pacing and keep the conversation flowing. "
-        "You have a fun personality.",
+        "You represent the next level of human-AI partnership.",
     tools=tools,
     speech_config=types.SpeechConfig(
         voice_config=types.VoiceConfig(
@@ -242,6 +243,9 @@ class AudioLoop:
         # VAD State
         self._is_speaking = False
         self._silence_start_time = None
+        
+        # Audio Playback State (Loopback prevention)
+        self._is_playing = False
         
         # Initialize ProjectManager
         from project_manager import ProjectManager
@@ -848,6 +852,70 @@ class AudioLoop:
                                     )
                                     function_responses.append(function_response)
 
+                                # === LIFE OS HANDLERS ===
+                                elif fc.name == "create_goal":
+                                    print(f"[ALPHA DEBUG] [TOOL] Tool Call: 'create_goal'")
+                                    title = fc.args["title"]
+                                    description = fc.args.get("description", "")
+                                    category = fc.args.get("category", "general")
+                                    due_date = fc.args.get("due_date")
+                                    
+                                    try:
+                                        await self.db_manager.create_goal(title, description, category, due_date)
+                                        result_msg = f"Goal '{title}' created successfully."
+                                    except Exception as e:
+                                        result_msg = f"Failed to create goal: {str(e)}"
+                                        
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_msg}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "view_goals":
+                                    print(f"[ALPHA DEBUG] [TOOL] Tool Call: 'view_goals'")
+                                    summary = await self.context_engine.get_goals_summary()
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": summary}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "create_habit":
+                                    print(f"[ALPHA DEBUG] [TOOL] Tool Call: 'create_habit'")
+                                    name = fc.args["name"]
+                                    description = fc.args.get("description", "")
+                                    frequency = fc.args.get("frequency", "daily")
+                                    
+                                    try:
+                                        await self.db_manager.create_habit(name, description, frequency)
+                                        result_msg = f"Habit '{name}' tracking started ({frequency})."
+                                    except Exception as e:
+                                        result_msg = f"Failed to create habit: {str(e)}"
+                                        
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_msg}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "complete_habit":
+                                    print(f"[ALPHA DEBUG] [TOOL] Tool Call: 'complete_habit'")
+                                    habit_name = fc.args["habit_name"]
+                                    
+                                    # We need to find the habit ID by name (simple lookup for now)
+                                    habits = await self.db_manager.get_habits(active_only=True)
+                                    target_habit = next((h for h in habits if h['name'].lower() == habit_name.lower()), None)
+                                    
+                                    if target_habit:
+                                        await self.db_manager.complete_habit(target_habit['id'])
+                                        result_msg = f"Great job! Habit '{target_habit['name']}' marked as complete."
+                                    else:
+                                        result_msg = f"Habit '{habit_name}' not found. Ask to view habits to see exact names."
+                                        
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_msg}
+                                    )
+                                    function_responses.append(function_response)
+
+
                                 elif fc.name == "list_smart_devices":
                                     print(f"[ALPHA DEBUG] [TOOL] Tool Call: 'list_smart_devices'")
                                     # Use cached devices directly for speed
@@ -1038,9 +1106,17 @@ class AudioLoop:
         )
         while True:
             bytestream = await self.audio_in_queue.get()
+            
+            # Start Playing State
+            self._is_playing = True
+            
             if self.on_audio_data:
                 self.on_audio_data(bytestream)
             await asyncio.to_thread(stream.write, bytestream)
+            
+            # Check if queue is empty to reset state (with a small buffer logic ideally, but this helps)
+            if self.audio_in_queue.empty():
+                self._is_playing = False
 
     async def get_frames(self):
         cap = await asyncio.to_thread(cv2.VideoCapture, 0, cv2.CAP_AVFOUNDATION)

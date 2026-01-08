@@ -51,10 +51,10 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 # Global state
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 audio_loop = None
 loop_task = None
 authenticator = None
-kasa_agent = KasaAgent()
 kasa_agent = KasaAgent()
 
 DEFAULT_SETTINGS = {
@@ -126,12 +126,12 @@ async def startup_event():
 
 @app.get("/status")
 async def status():
-    return {"status": "running", "service": "A.D.A Backend"}
+    return {"status": "running", "service": "ALPHA Backend"}
 
 @sio.event
 async def connect(sid, environ):
     print(f"Client connected: {sid}")
-    await sio.emit('status', {'msg': 'Connected to A.D.A Backend'}, room=sid)
+    await sio.emit('status', {'msg': 'Connected to ALPHA Backend'}, room=sid)
 
     global authenticator
     
@@ -313,8 +313,8 @@ async def start_audio(sid, data=None):
         
         loop_task.add_done_callback(handle_loop_exit)
         
-        print("Emitting 'A.D.A Started'")
-        await sio.emit('status', {'msg': 'A.D.A Started'})
+        print("Emitting 'ALPHA Started'")
+        await sio.emit('status', {'msg': 'ALPHA Started'})
 
         # Printers removed for Life OS
         
@@ -335,7 +335,7 @@ async def stop_audio(sid):
         audio_loop.stop() 
         print("Stopping Audio Loop")
         audio_loop = None
-        await sio.emit('status', {'msg': 'A.D.A Stopped'})
+        await sio.emit('status', {'msg': 'ALPHA Stopped'})
 
 @sio.event
 async def pause_audio(sid):

@@ -57,10 +57,7 @@ async def test_habits_crud(db):
     
     # Complete
     assert await db.complete_habit(habit_id)
-    # Verify streak updated (implementation detail check)
-    async with db.db_path as conn: # Wait, db manager doesn't expose conn directly easily, let's re-query
-        pass
-    
+    # Verify streak updated
     habits = await db.get_habits()
     assert habits[0]['streak'] == 1
 
