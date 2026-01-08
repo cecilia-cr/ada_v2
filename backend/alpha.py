@@ -246,6 +246,10 @@ class AudioLoop:
         
         # Audio Playback State (Loopback prevention)
         self._is_playing = False
+        self._last_playback_time = 0
+        
+        # Audio Playback State (Loopback prevention)
+        self._is_playing = False
         
         # Initialize ProjectManager
         from project_manager import ProjectManager
@@ -400,6 +404,13 @@ class AudioLoop:
 
             try:
                 data = await asyncio.to_thread(self.audio_stream.read, CHUNK_SIZE, **kwargs)
+                
+                # LOOPBACK PREVENTION:
+                # If we are currently playing audio (TTS) or just finished, ignore input
+                import time
+                if self._is_playing or (time.time() - self._last_playback_time < 0.5):
+                     await asyncio.sleep(0.01)
+                     continue
                 
                 # 1. Send Audio
                 if self.out_queue:
@@ -1117,6 +1128,7 @@ class AudioLoop:
             # Check if queue is empty to reset state (with a small buffer logic ideally, but this helps)
             if self.audio_in_queue.empty():
                 self._is_playing = False
+                self._last_playback_time = time.time()
 
     async def get_frames(self):
         cap = await asyncio.to_thread(cv2.VideoCapture, 0, cv2.CAP_AVFOUNDATION)
