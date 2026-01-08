@@ -13,7 +13,6 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import ConfirmationPopup from './components/ConfirmationPopup';
 import AuthLock from './components/AuthLock';
 import KasaWindow from './components/KasaWindow';
-import PrinterWindow from './components/PrinterWindow';
 import SettingsWindow from './components/SettingsWindow';
 
 
@@ -57,14 +56,10 @@ function App() {
     const [confirmationRequest, setConfirmationRequest] = useState(null); // { id, tool, args }
     const [kasaDevices, setKasaDevices] = useState([]);
     const [showKasaWindow, setShowKasaWindow] = useState(false);
-    const [showPrinterWindow, setShowPrinterWindow] = useState(false);
+    const [showKasaWindow, setShowKasaWindow] = useState(false);
     const [showCadWindow, setShowCadWindow] = useState(false);
     const [showBrowserWindow, setShowBrowserWindow] = useState(false);
 
-    // Printing workflow status (for top toolbar display)
-    const [slicingStatus, setSlicingStatus] = useState({ active: false, percent: 0, message: '' });
-    const [activePrintStatus, setActivePrintStatus] = useState(null); // {printer, progress_percent, time_elapsed, state}
-    const [printerCount, setPrinterCount] = useState(0); // Count of connected printers
     const [currentTime, setCurrentTime] = useState(new Date()); // Live clock
 
 
@@ -94,7 +89,8 @@ function App() {
         cad: { x: window.innerWidth / 2 + 300, y: window.innerHeight / 2 },
         browser: { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 },
         kasa: { x: window.innerWidth / 2 + 350, y: window.innerHeight / 2 - 100 },
-        printer: { x: window.innerWidth / 2 - 350, y: window.innerHeight / 2 - 100 },
+        browser: { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 },
+        kasa: { x: window.innerWidth / 2 + 350, y: window.innerHeight / 2 - 100 },
         tools: { x: window.innerWidth / 2, y: window.innerHeight - 100 } // Fixed bottom OFFSET
     });
 
@@ -106,13 +102,12 @@ function App() {
         browser: { w: 550, h: 380 },
         video: { w: 320, h: 180 },
         kasa: { w: 300, h: 380 }, // Approx
-        printer: { w: 380, h: 380 } // Approx
     });
     const [activeDragElement, setActiveDragElement] = useState(null);
 
     // Z-Index Stacking Order (last element = highest z-index)
     const [zIndexOrder, setZIndexOrder] = useState([
-        'visualizer', 'chat', 'tools', 'video', 'cad', 'browser', 'kasa', 'printer'
+        'visualizer', 'chat', 'tools', 'video', 'cad', 'browser', 'kasa'
     ]);
 
     // Hand Control State
@@ -294,9 +289,8 @@ function App() {
         if (isConnected && isAuthenticated && socketConnected && micDevices.length > 0 && !hasAutoConnectedRef.current) {
             hasAutoConnectedRef.current = true;
 
-            // Trigger Kasa and Printer Discovery
+            // Trigger Kasa Discovery
             socket.emit('discover_kasa');
-            socket.emit('discover_printers');
 
             // Connect to model with small delay for socket stability
             const timer = setTimeout(() => {
@@ -470,17 +464,6 @@ function App() {
             setConfirmationRequest(data);
         });
 
-        // Handle Print Window Request (from CadWindow)
-        socket.on('request_print_window', () => {
-            setShowPrinterWindow(true);
-            const size = { w: 380, h: 380 };
-            const clamped = clampToViewport({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, size);
-            setElementPositions(prev => ({
-                ...prev,
-                printer: clamped
-            }));
-        });
-
         // Kasa Devices
         socket.on('kasa_devices', (devices) => {
             console.log("Kasa Devices:", devices);
@@ -507,37 +490,10 @@ function App() {
             addMessage('System', `Switched to project: ${data.project}`);
         });
 
-        // Track printer count for toolbar display
-        socket.on('printer_list', (list) => {
-            console.log('[PRINTERS] Count:', list.length);
-            setPrinterCount(list.length);
-        });
-
-        // Slicing progress for top toolbar
-        socket.on('slicing_progress', (data) => {
-            console.log('[SLICING] Progress:', data);
-            setSlicingStatus({
-                active: data.percent < 100,
-                percent: data.percent,
-                message: data.message
-            });
-        });
-
-        // Print status for top toolbar - track active prints
-        socket.on('print_status_update', (data) => {
-            console.log('[PRINT STATUS]', data);
-            // Only show in toolbar if actively printing
-            if (data.state && data.state.toLowerCase().includes('print')) {
-                setActivePrintStatus({
-                    printer: data.printer,
-                    progress_percent: data.progress_percent,
-                    time_elapsed: data.time_elapsed,
-                    state: data.state
-                });
-            } else if (data.state && (data.state.toLowerCase() === 'idle' || data.state.toLowerCase() === 'standby' || data.state.toLowerCase() === 'complete')) {
-                // Clear if print finished or idle
-                setActivePrintStatus(null);
-            }
+        socket.on('project_update', (data) => {
+            console.log("Project Update:", data.project);
+            setCurrentProject(data.project);
+            addMessage('System', `Switched to project: ${data.project}`);
         });
 
 
@@ -629,9 +585,7 @@ function App() {
             socket.off('transcription');
             socket.off('tool_confirmation_request');
             socket.off('kasa_devices');
-            socket.off('printer_list');
-            socket.off('slicing_progress');
-            socket.off('print_status_update');
+            socket.off('kasa_devices');
             socket.off('error');
 
             stopMicVisualizer();
@@ -969,7 +923,7 @@ function App() {
                 if (isFist) {
                     if (!activeDragElementRef.current) {
                         // Only check popup windows (draggable elements)
-                        const draggableElements = ['cad', 'browser', 'kasa', 'printer'];
+                        const draggableElements = ['cad', 'browser', 'kasa'];
 
                         for (const id of draggableElements) {
                             const el = document.getElementById(id);
@@ -1336,10 +1290,6 @@ function App() {
         setShowKasaWindow(!showKasaWindow);
     };
 
-    const togglePrinterWindow = () => {
-        setShowPrinterWindow(!showPrinterWindow);
-    };
-
 
 
     return (
@@ -1408,13 +1358,7 @@ function App() {
                             FPS: {fps}
                         </div>
                     )}
-                    {/* Connected Printers Count */}
-                    {printerCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-green-400 border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded ml-2">
-                            <Printer size={10} className="text-green-400" />
-                            <span>{printerCount} Printer{printerCount !== 1 ? 's' : ''}</span>
-                        </div>
-                    )}
+                    {/* Connected Smart Devices Count */}
                     {/* Connected Smart Devices Count */}
                     {kasaDevices.length > 0 && (
                         <div className="flex items-center gap-1.5 text-[10px] text-yellow-400 border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 rounded ml-2">
@@ -1638,8 +1582,8 @@ function App() {
                         onToggleHand={() => setIsHandTrackingEnabled(!isHandTrackingEnabled)}
                         onToggleKasa={toggleKasaWindow}
                         showKasaWindow={showKasaWindow}
-                        onTogglePrinter={togglePrinterWindow}
-                        showPrinterWindow={showPrinterWindow}
+                        onToggleKasa={toggleKasaWindow}
+                        showKasaWindow={showKasaWindow}
                         onToggleCad={() => setShowCadWindow(!showCadWindow)}
                         showCadWindow={showCadWindow}
                         onToggleBrowser={() => setShowBrowserWindow(!showBrowserWindow)}
@@ -1664,18 +1608,7 @@ function App() {
                     />
                 )}
 
-                {/* Printer Window */}
-                {showPrinterWindow && (
-                    <PrinterWindow
-                        socket={socket}
-                        onClose={() => setShowPrinterWindow(false)}
-                        position={elementPositions.printer}
-                        onMouseDown={(e) => handleMouseDown(e, 'printer')}
-                        activeDragElement={activeDragElement}
-                        setActiveDragElement={setActiveDragElement}
-                        zIndex={getZIndex('printer')}
-                    />
-                )}
+
 
                 {/* Memory Prompt removed - memory is now actively saved to project */}
 
