@@ -23,6 +23,8 @@ if sys.version_info < (3, 11, 0):
     asyncio.ExceptionGroup = exceptiongroup.ExceptionGroup
 
 from tools import tools_list
+from database import DatabaseManager
+from context_engine import ContextEngine
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -249,6 +251,10 @@ class AudioLoop:
         # If ada.py is in backend/, project root is one up
         project_root = os.path.dirname(current_dir)
         self.project_manager = ProjectManager(project_root)
+        
+        # Initialize Database & Context Engine
+        self.db_manager = DatabaseManager()
+        self.context_engine = ContextEngine(self.db_manager)
         
         # Sync Initial Project State
         if self.on_project_update:
@@ -1071,6 +1077,10 @@ class AudioLoop:
     async def run(self, start_message=None):
         retry_delay = 1
         is_reconnect = False
+        
+        # Initialize Database
+        await self.db_manager.initialize()
+        print("[ALPHA DEBUG] [DB] Database initialized successfully.")
         
         while not self.stop_event.is_set():
             try:
