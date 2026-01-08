@@ -22,7 +22,7 @@ from pathlib import Path
 # Ensure we can import ada
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-import ada
+import alpha as ada
 from authenticator import FaceAuthenticator
 from kasa_agent import KasaAgent
 
@@ -226,7 +226,7 @@ async def start_audio(sid, data=None):
         
     # Callback to send Transcription data to frontend
     def on_transcription(data):
-        # data = {"sender": "User"|"ADA", "text": "..."}
+        # data = {"sender": "User"|"ALPHA", "text": "..."}
         asyncio.create_task(sio.emit('transcription', data))
 
     # Callback to send Confirmation Request to frontend
@@ -268,7 +268,7 @@ async def start_audio(sid, data=None):
         print(f"Sending Error to frontend: {msg}")
         asyncio.create_task(sio.emit('error', {'msg': msg}))
 
-    # Initialize ADA
+    # Initialize ALPHA
     try:
         print(f"Initializing AudioLoop with device_index={device_index}")
         audio_loop = ada.AudioLoop(
@@ -319,7 +319,7 @@ async def start_audio(sid, data=None):
         # Printers removed for Life OS
         
     except Exception as e:
-        print(f"CRITICAL ERROR STARTING ADA: {e}")
+        print(f"CRITICAL ERROR STARTING ALPHA: {e}")
         import traceback
         traceback.print_exc()
         await sio.emit('error', {'msg': f"Failed to start: {str(e)}"})
@@ -654,99 +654,9 @@ async def prompt_web_agent(sid, data):
         print(f"Error running Web Agent: {e}")
         await sio.emit('error', {'msg': f"Web Agent Error: {str(e)}"})
 
-        await sio.emit('printer_list', printers)
-        await sio.emit('status', {'msg': f"Added printer: {name}"})
-        
-    except Exception as e:
-        print(f"Error adding printer: {e}")
-        await sio.emit('error', {'msg': f"Failed to add printer: {str(e)}"})
 
-@sio.event
-async def print_stl(sid, data):
-    print(f"Received print_stl request: {data}")
-    # data: { stl_path: "path/to.stl" | "current", printer: "name_or_ip", profile: "optional" }
-    
-    if not audio_loop or not audio_loop.printer_agent:
-        await sio.emit('error', {'msg': "Printer Agent not available"})
-        return
-        
-    try:
-        stl_path = data.get('stl_path', 'current')
-        printer_name = data.get('printer')
-        profile = data.get('profile')
-        
-        if not printer_name:
-             await sio.emit('error', {'msg': "No printer specified"})
-             return
-             
-        await sio.emit('status', {'msg': f"Preparing print for {printer_name}..."})
-        
-        # Get current project path for resolution
-        current_project_path = None
-        if audio_loop and audio_loop.project_manager:
-            current_project_path = str(audio_loop.project_manager.get_current_project_path())
-            print(f"[SERVER DEBUG] Using project path: {current_project_path}")
 
-        # Resolve STL path before slicing so we can preview it
-        resolved_stl = audio_loop.printer_agent._resolve_file_path(stl_path, current_project_path)
-        
-        if resolved_stl and os.path.exists(resolved_stl):
-            # Open the STL in the CAD module for preview
-            try:
-                import base64
-                with open(resolved_stl, 'rb') as f:
-                    stl_data = f.read()
-                stl_b64 = base64.b64encode(stl_data).decode('utf-8')
-                stl_filename = os.path.basename(resolved_stl)
-                
-                print(f"[SERVER] Opening STL in CAD module: {stl_filename}")
-                await sio.emit('cad_data', {
-                    'format': 'stl',
-                    'data': stl_b64,
-                    'filename': stl_filename
-                })
-            except Exception as e:
-                print(f"[SERVER] Warning: Could not preview STL: {e}")
-        
-        # Progress Callback
-        async def on_slicing_progress(percent, message):
-            await sio.emit('slicing_progress', {
-                'printer': printer_name,
-                'percent': percent,
-                'message': message
-            })
-            if percent < 100:
-                 await sio.emit('status', {'msg': f"Slicing: {percent}%"})
 
-        result = await audio_loop.printer_agent.print_stl(
-            stl_path, 
-            printer_name, 
-            profile,
-            progress_callback=on_slicing_progress,
-            root_path=current_project_path
-        )
-        
-        await sio.emit('print_result', result)
-        await sio.emit('status', {'msg': f"Print Job: {result.get('status', 'unknown')}"})
-        
-    except Exception as e:
-        print(f"Error printing STL: {e}")
-        await sio.emit('error', {'msg': f"Print Failed: {str(e)}"})
-
-@sio.event
-async def get_slicer_profiles(sid):
-    """Get available OrcaSlicer profiles for manual selection."""
-    print("Received get_slicer_profiles request")
-    if not audio_loop or not audio_loop.printer_agent:
-        await sio.emit('error', {'msg': "Printer Agent not available"})
-        return
-    
-    try:
-        profiles = audio_loop.printer_agent.get_available_profiles()
-        await sio.emit('slicer_profiles', profiles)
-    except Exception as e:
-        print(f"Error getting slicer profiles: {e}")
-        await sio.emit('error', {'msg': f"Failed to get profiles: {str(e)}"})
 
 @sio.event
 async def control_kasa(sid, data):

@@ -56,7 +56,7 @@ function App() {
     const [confirmationRequest, setConfirmationRequest] = useState(null); // { id, tool, args }
     const [kasaDevices, setKasaDevices] = useState([]);
     const [showKasaWindow, setShowKasaWindow] = useState(false);
-    const [showKasaWindow, setShowKasaWindow] = useState(false);
+
     const [showCadWindow, setShowCadWindow] = useState(false);
     const [showBrowserWindow, setShowBrowserWindow] = useState(false);
 
@@ -323,9 +323,9 @@ function App() {
         socket.on('status', (data) => {
             addMessage('System', data.msg);
             // Update status bar based on backend messages
-            if (data.msg === 'A.D.A Started') {
+            if (data.msg === 'ALPHA Started') {
                 setStatus('Model Connected');
-            } else if (data.msg === 'A.D.A Stopped') {
+            } else if (data.msg === 'ALPHA Stopped') {
                 setStatus('Connected');
             }
         });
@@ -1582,8 +1582,7 @@ function App() {
                         onToggleHand={() => setIsHandTrackingEnabled(!isHandTrackingEnabled)}
                         onToggleKasa={toggleKasaWindow}
                         showKasaWindow={showKasaWindow}
-                        onToggleKasa={toggleKasaWindow}
-                        showKasaWindow={showKasaWindow}
+
                         onToggleCad={() => setShowCadWindow(!showCadWindow)}
                         showCadWindow={showCadWindow}
                         onToggleBrowser={() => setShowBrowserWindow(!showBrowserWindow)}

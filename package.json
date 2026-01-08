@@ -1,5 +1,5 @@
 {
-  "name": "ada-v2",
+  "name": "life-os-alpha",
   "version": "1.0.0",
   "description": "A.D.A V2 - AI Assistant",
   "main": "electron/main.js",
